@@ -76,7 +76,7 @@ export default function HalloweenGame() {
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl space-y-4 text-lg">
             <p><strong>L'Evocazione:</strong> Scegli una Parola Proibita. Non sono ammessi doppioni e non si torna indietro.</p>
             <p><strong>La Maledizione:</strong> Se durante la notte qualcuno pronuncia la tua parola, la maledizione si attiva.</p>
-            <p><strong>Il Rituale del Calderone:</strong> Tutti i presenti, <em>tranne te</em>, dovranno pescare un biglietto del destino.</p>
+            <p><strong>Il Rituale del Calderone:</strong> Chi ha pronunciato la parola, <em>tranne te</em>, drovrà pescare un biglietto del destino.</p>
             <button 
               onClick={() => setStep(isLocked ? "dashboard" : "form")}
               className="w-full mt-8 bg-orange-600 hover:bg-orange-500 text-white font-bold py-4 rounded-xl transition-all"
