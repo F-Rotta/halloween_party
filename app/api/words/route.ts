@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
 export interface PlayerWord {
   name: string;
@@ -7,48 +7,55 @@ export interface PlayerWord {
   count: number;
 }
 
+const redis = Redis.fromEnv();
 const STORAGE_KEY = 'halloween_words_session';
 
 export async function GET() {
   try {
-    const words = (await kv.get<PlayerWord[]>(STORAGE_KEY)) || [];
+    const words = (await redis.get<PlayerWord[]>(STORAGE_KEY)) || [];
     return NextResponse.json(words);
   } catch (err) {
-    return NextResponse.json({ error: 'Errore nel recupero dati' }, { status: 500 });
+    return NextResponse.json({ error: 'Errore nel recupero dati da Redis' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const { action, name, word, targetWord } = await req.json();
-    let words = (await kv.get<PlayerWord[]>(STORAGE_KEY)) || [];
+    const body = await req.json();
+    const { action, name, word } = body;
+    const targetWord = body.originalWord || body.targetWord;
 
-    if (action === 'register') {
+    let words = (await redis.get<PlayerWord[]>(STORAGE_KEY)) || [];
+
+    // 1. Aggiunta partecipante e parola
+    if (action === 'add' || action === 'register') {
       const formattedWord = word.trim().toUpperCase();
       const formattedName = name.trim();
 
       if (words.some((item) => item.word.toUpperCase() === formattedWord)) {
-        return NextResponse.json({ error: 'Parola già reclamata da un altro spirito!' }, { status: 400 });
+        return NextResponse.json({ error: 'Parola già rubata da un altro spirito!' }, { status: 400 });
       }
 
       words.push({ name: formattedName, word: formattedWord, count: 0 });
-      await kv.set(STORAGE_KEY, words);
+      await redis.set(STORAGE_KEY, words);
     } 
-    else if (action === 'increment') {
+    // 2. Incremento contatore
+    else if (action === 'updateCount' || action === 'increment') {
       words = words.map((item) =>
         item.word === targetWord ? { ...item, count: item.count + 1 } : item
       );
-      await kv.set(STORAGE_KEY, words);
+      await redis.set(STORAGE_KEY, words);
     } 
-    else if (action === 'decrement') {
+    // 3. Decremento contatore
+    else if (action === 'decreaseCount' || action === 'decrement') {
       words = words.map((item) =>
         item.word === targetWord && item.count > 0 ? { ...item, count: item.count - 1 } : item
       );
-      await kv.set(STORAGE_KEY, words);
+      await redis.set(STORAGE_KEY, words);
     }
 
     return NextResponse.json(words);
   } catch (err) {
-    return NextResponse.json({ error: 'Errore nel salvataggio su KV' }, { status: 500 });
+    return NextResponse.json({ error: 'Errore nel salvataggio su Redis' }, { status: 500 });
   }
 }
