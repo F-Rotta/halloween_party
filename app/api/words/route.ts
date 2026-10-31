@@ -7,15 +7,21 @@ export interface PlayerWord {
   count: number;
 }
 
-const redis = Redis.fromEnv();
+// Inizializza leggendo sia le variabili UPSTASH sia quelle KV di Vercel
+const redis = new Redis({
+  url: process.env.HALLOWEEN_PARTY_KV_REST_API_URL || process.env.KV_REST_API_URL || '',
+  token: process.env.HALLOWEEN_PARTY_KV_REST_API_TOKEN || process.env.KV_REST_API_TOKEN || '',
+});
+
 const STORAGE_KEY = 'halloween_words_session';
 
 export async function GET() {
   try {
     const words = (await redis.get<PlayerWord[]>(STORAGE_KEY)) || [];
-    return NextResponse.json(words);
-  } catch (err) {
-    return NextResponse.json({ error: 'Errore nel recupero dati da Redis' }, { status: 500 });
+    return NextResponse.json(Array.isArray(words) ? words : []);
+  } catch (err: any) {
+    console.error('Errore Redis GET:', err?.message || err);
+    return NextResponse.json({ error: 'Errore connessione database', details: err?.message }, { status: 500 });
   }
 }
 
@@ -25,29 +31,25 @@ export async function POST(req: Request) {
     const { action, name, word } = body;
     const targetWord = body.originalWord || body.targetWord;
 
-    let words = (await redis.get<PlayerWord[]>(STORAGE_KEY)) || [];
+    const current = await redis.get<PlayerWord[]>(STORAGE_KEY);
+    let words: PlayerWord[] = Array.isArray(current) ? current : [];
 
-    // 1. Aggiunta partecipante e parola
     if (action === 'add' || action === 'register') {
       const formattedWord = word.trim().toUpperCase();
       const formattedName = name.trim();
 
       if (words.some((item) => item.word.toUpperCase() === formattedWord)) {
-        return NextResponse.json({ error: 'Parola già rubata da un altro spirito!' }, { status: 400 });
+        return NextResponse.json({ error: 'Parola già rubata!' }, { status: 400 });
       }
 
       words.push({ name: formattedName, word: formattedWord, count: 0 });
       await redis.set(STORAGE_KEY, words);
-    } 
-    // 2. Incremento contatore
-    else if (action === 'updateCount' || action === 'increment') {
+    } else if (action === 'updateCount' || action === 'increment') {
       words = words.map((item) =>
         item.word === targetWord ? { ...item, count: item.count + 1 } : item
       );
       await redis.set(STORAGE_KEY, words);
-    } 
-    // 3. Decremento contatore
-    else if (action === 'decreaseCount' || action === 'decrement') {
+    } else if (action === 'decreaseCount' || action === 'decrement') {
       words = words.map((item) =>
         item.word === targetWord && item.count > 0 ? { ...item, count: item.count - 1 } : item
       );
@@ -55,7 +57,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(words);
-  } catch (err) {
-    return NextResponse.json({ error: 'Errore nel salvataggio su Redis' }, { status: 500 });
+  } catch (err: any) {
+    console.error('Errore Redis POST:', err?.message || err);
+    return NextResponse.json({ error: 'Errore salvataggio', details: err?.message }, { status: 500 });
   }
 }

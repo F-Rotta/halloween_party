@@ -21,10 +21,17 @@ export default function HalloweenGame() {
     }
   }, []);
 
-  const fetchWords = async () => {
-    const res = await fetch("/api/words");
-    const data = await res.json();
-    setWordsList(data);
+ const fetchWords = async () => {
+    try {
+      const res = await fetch("/api/words");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setWordsList(data);
+      }
+    } catch (e) {
+      console.error("Errore fetch words:", e);
+    }
   };
 
   const handleConfirm = async () => {
